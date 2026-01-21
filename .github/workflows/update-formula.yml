@@ -1,0 +1,115 @@
+name: Update Formula
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v0.1.0)'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [release-published]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ -n "${{ github.event.client_payload.version }}" ]; then
+            VERSION="${{ github.event.client_payload.version }}"
+          else
+            # Fetch latest from small-dist
+            VERSION=$(curl -fsSL https://api.github.com/repos/justyn-clark/small-dist/releases/latest | jq -r .tag_name)
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION_NUMBER=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Download SHA256SUMS
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          curl -fsSL "https://github.com/justyn-clark/small-dist/releases/download/${VERSION}/SHA256SUMS" -o SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Extract checksums
+        id: checksums
+        run: |
+          echo "DARWIN_AMD64=$(grep 'small_darwin_amd64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "DARWIN_ARM64=$(grep 'small_darwin_arm64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "LINUX_AMD64=$(grep 'small_linux_amd64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "LINUX_ARM64=$(grep 'small_linux_arm64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Update formula
+        run: |
+          VERSION_NUMBER="${{ steps.version.outputs.VERSION_NUMBER }}"
+
+          cat > Formula/small.rb << 'FORMULA_EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Small < Formula
+            desc "SMALL CLI - Command line interface for the SMALL protocol"
+            homepage "https://github.com/justyn-clark/small-dist"
+            version "$VERSION_NUMBER"
+            license "MIT"
+
+            on_macos do
+              on_intel do
+                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_darwin_amd64.tar.gz"
+                sha256 "$DARWIN_AMD64"
+              end
+
+              on_arm do
+                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_darwin_arm64.tar.gz"
+                sha256 "$DARWIN_ARM64"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_linux_amd64.tar.gz"
+                sha256 "$LINUX_AMD64"
+              end
+
+              on_arm do
+                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_linux_arm64.tar.gz"
+                sha256 "$LINUX_ARM64"
+              end
+            end
+
+            def install
+              bin.install "small"
+            end
+
+            test do
+              system "#{bin}/small", "version"
+            end
+          end
+          FORMULA_EOF
+
+          # Replace placeholders
+          sed -i "s/\$VERSION_NUMBER/${VERSION_NUMBER}/g" Formula/small.rb
+          sed -i "s/\$DARWIN_AMD64/${{ steps.checksums.outputs.DARWIN_AMD64 }}/g" Formula/small.rb
+          sed -i "s/\$DARWIN_ARM64/${{ steps.checksums.outputs.DARWIN_ARM64 }}/g" Formula/small.rb
+          sed -i "s/\$LINUX_AMD64/${{ steps.checksums.outputs.LINUX_AMD64 }}/g" Formula/small.rb
+          sed -i "s/\$LINUX_ARM64/${{ steps.checksums.outputs.LINUX_ARM64 }}/g" Formula/small.rb
+
+          cat Formula/small.rb
+
+      - name: Commit and push
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/small.rb
+          git diff --staged --quiet || git commit -m "Update small formula to ${VERSION}"
+          git push
