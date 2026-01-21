@@ -4,8 +4,8 @@
 class Small < Formula
   desc "SMALL CLI - Command line interface for the SMALL protocol"
   homepage "https://github.com/justyn-clark/small-dist"
-  version "0.1.0"
-  license "MIT"
+  version "1.0.0"
+  license "Apache-2.0"
 
   on_macos do
     on_intel do
