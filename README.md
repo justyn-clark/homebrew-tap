@@ -1,4 +1,4 @@
-# Homebrew Tap for SMALL CLI
+# Homebrew tap for shipping my CLI tools + and macOS apps.
 
 This is the official Homebrew tap for the SMALL CLI.
 
