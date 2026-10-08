@@ -28,25 +28,26 @@ jobs:
           elif [ -n "${{ github.event.client_payload.version }}" ]; then
             VERSION="${{ github.event.client_payload.version }}"
           else
-            # Fetch latest from small-dist
-            VERSION=$(curl -fsSL https://api.github.com/repos/justyn-clark/small-dist/releases/latest | jq -r .tag_name)
+            # Fetch latest from small-protocol
+            VERSION=$(curl -fsSL https://api.github.com/repos/justyn-clark/small-protocol/releases/latest | jq -r .tag_name)
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION_NUMBER=${VERSION#v}" >> $GITHUB_OUTPUT
 
-      - name: Download SHA256SUMS
+      - name: Download checksums.txt
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          curl -fsSL "https://github.com/justyn-clark/small-dist/releases/download/${VERSION}/SHA256SUMS" -o SHA256SUMS
-          cat SHA256SUMS
+          curl -fsSL "https://github.com/justyn-clark/small-protocol/releases/download/${VERSION}/checksums.txt" -o checksums.txt
+          cat checksums.txt
 
       - name: Extract checksums
         id: checksums
         run: |
-          echo "DARWIN_AMD64=$(grep 'small_darwin_amd64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
-          echo "DARWIN_ARM64=$(grep 'small_darwin_arm64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
-          echo "LINUX_AMD64=$(grep 'small_linux_amd64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
-          echo "LINUX_ARM64=$(grep 'small_linux_arm64.tar.gz' SHA256SUMS | awk '{print $1}')" >> $GITHUB_OUTPUT
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "DARWIN_AMD64=$(grep -F "small-${VERSION}-darwin-amd64.tar.gz" checksums.txt | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "DARWIN_ARM64=$(grep -F "small-${VERSION}-darwin-arm64.tar.gz" checksums.txt | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "LINUX_AMD64=$(grep -F "small-${VERSION}-linux-amd64.tar.gz" checksums.txt | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "LINUX_ARM64=$(grep -F "small-${VERSION}-linux-arm64.tar.gz" checksums.txt | awk '{print $1}')" >> $GITHUB_OUTPUT
 
       - name: Update formula
         run: |
@@ -57,31 +58,31 @@ jobs:
           # frozen_string_literal: true
 
           class Small < Formula
-            desc "SMALL CLI - Command line interface for the SMALL protocol"
-            homepage "https://github.com/justyn-clark/small-dist"
+            desc "Command-line interface for the SMALL protocol"
+            homepage "https://github.com/justyn-clark/small-protocol"
             version "$VERSION_NUMBER"
-            license "MIT"
+            license "Apache-2.0"
 
             on_macos do
               on_intel do
-                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_darwin_amd64.tar.gz"
+                url "https://github.com/justyn-clark/small-protocol/releases/download/v#{version}/small-v#{version}-darwin-amd64.tar.gz"
                 sha256 "$DARWIN_AMD64"
               end
 
               on_arm do
-                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_darwin_arm64.tar.gz"
+                url "https://github.com/justyn-clark/small-protocol/releases/download/v#{version}/small-v#{version}-darwin-arm64.tar.gz"
                 sha256 "$DARWIN_ARM64"
               end
             end
 
             on_linux do
               on_intel do
-                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_linux_amd64.tar.gz"
+                url "https://github.com/justyn-clark/small-protocol/releases/download/v#{version}/small-v#{version}-linux-amd64.tar.gz"
                 sha256 "$LINUX_AMD64"
               end
 
               on_arm do
-                url "https://github.com/justyn-clark/small-dist/releases/download/v#{version}/small_linux_arm64.tar.gz"
+                url "https://github.com/justyn-clark/small-protocol/releases/download/v#{version}/small-v#{version}-linux-arm64.tar.gz"
                 sha256 "$LINUX_ARM64"
               end
             end
